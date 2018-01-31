@@ -1,4 +1,5 @@
 <?php
+
 namespace Uploader;
 
 use Uploader\Helpers\Format;
@@ -13,198 +14,210 @@ use Phalcon\Http\Request;
  * @author    Stanislav WEB | Lugansk <stanisov@gmail.com>
  * @copyright Stanislav WEB
  */
-class Uploader {
+class Uploader
+{
 
-    /**
-     * Request
-     *
-     * @var \Phalcon\Http\Request $rules
-     */
-    private $request;
+	/**
+	 * Request
+	 *
+	 * @var \Phalcon\Http\Request $rules
+	 */
+	private $request;
 
-    /**
-     * File
-     *
-     * @var \Phalcon\Http\Request\File $files
-     */
-    private $files;
+	/**
+	 * File
+	 *
+	 * @var \Phalcon\Http\Request\File $files
+	 */
+	private $files;
 
-    /**
-     * Validation Rules
-     *
-     * @var array $rules
-     */
-    private $rules  = [];
+	/**
+	 * Validation Rules
+	 *
+	 * @var array $rules
+	 */
+	private $rules = [];
 
-    /**
-     * Uploaded files array
-     *
-     * @var array $info
-     */
-    private $info;
+	/**
+	 * Uploaded files array
+	 *
+	 * @var array $info
+	 */
+	private $info;
 
-    /**
-     * Validator
-     *
-     * @var \Uploader\Validator
-     */
-    private $validator;
+	/**
+	 * Validator
+	 *
+	 * @var \Uploader\Validator
+	 */
+	private $validator;
 
-    /**
-     * Initialize rules
-     *
-     * @param array $rules
-     */
-    public function __construct($rules = [])
-    {
-        if (empty($rules) === false) {
-            $this->setRules($rules);
-        }
+	/**
+	 * Initialize rules
+	 *
+	 * @param array $rules
+	 */
+	public function __construct($rules = [])
+	{
+		if (empty($rules) === false) {
+			$this->setRules($rules);
+		}
 
-        // get validator
-        $this->validator = new Validator();
-        // get current request
-        $this->request = new Request();
-    }
+		// get validator
+		$this->validator = new Validator();
+		// get current request
+		$this->request = new Request();
+	}
 
-    /**
-     * Setting up rules for uploaded files
-     *
-     * @param array $rules
-     * @return Uploader
-     */
-    public function setRules(array $rules)
-    {
-        foreach ($rules as $key => $values) {
+	/**
+	 * Setting up rules for uploaded files
+	 *
+	 * @param array $rules
+	 * @return Uploader
+	 */
+	public function setRules(array $rules)
+	{
+		foreach ($rules as $key => $values) {
 
-            if ((is_array($values) === true && empty($values) === false) || is_callable($values)) {
-                $this->rules[$key] = $values;
-            } else {
-                $this->rules[$key] = trim($values);
-            }
-        }
+			if ((is_array($values) === true && empty($values) === false) || is_callable($values)) {
+				$this->rules[$key] = $values;
+			} else {
+				$this->rules[$key] = trim($values);
+			}
+		}
 
-        return $this;
-    }
+		return $this;
+	}
 
-    /**
-     * Check if upload files are valid
-     *
-     * @return bool
-     */
-    public function isValid()
-    {
-        // get files for upload
-        $this->files = $this->request->getUploadedFiles();
+	/**
+	 * Check if upload files are valid
+	 *
+	 * @return bool
+	 */
+	public function isValid()
+	{
+		// get files for upload
+		$this->files = $this->request->getUploadedFiles();
 
-        if (sizeof($this->files) > 0) {
+		if (sizeof($this->files) > 0) {
 
-            // do any actions if files exists
+			// do any actions if files exists
 
-            foreach ($this->files as $n => $file) {
+			foreach ($this->files as $n => $file) {
 
-                // apply all the validation rules for each file
+				if (!$file->getTempName())
+					continue;
 
-                foreach ($this->rules as $key => $rule) {
+				// apply all the validation rules for each file
 
-                    if (method_exists($this->validator, 'check' . ucfirst($key)) === true) {
-                        $this->validator->{'check' . ucfirst($key)}($file, $rule);
-                    }
-                }
-            }
-        }
+				if (in_array($file->getKey(), $this->rules['keys'])) {
+					foreach ($this->rules as $key => $rule) {
 
-        $errors = $this->getErrors();
+						if (method_exists($this->validator, 'check' . ucfirst($key)) === true) {
+							$this->validator->{'check' . ucfirst($key)}($file, $rule);
+						}
+					}
+				}
 
-        return (empty($errors) === true) ? true : false;
-    }
 
-    /**
-     * Check if upload files are valid
-     *
-     * @return void
-     */
-    public function move()
-    {
-        // do any actions if files exists
+			}
+		}
 
-        foreach ($this->files as $n => $file) {
+		$errors = $this->getErrors();
 
-            $filename = $file->getName();
+		return (empty($errors) === true) ? true : false;
+	}
 
-            if (isset($this->rules['hash']) === true) {
-                if (empty($this->rules['hash']) === true) {
-                    $this->rules['hash'] = 'md5';
-                }
+	/**
+	 * Check if upload files are valid
+	 *
+	 * @return void
+	 */
+	public function move()
+	{
+		// do any actions if files exists
+		foreach ($this->files as $n => $file) {
+			if (!$file->getTempName())
+				continue;
 
-                if (!is_string($this->rules['hash']) === true) {
-                    $filename = call_user_func($this->rules['hash']) . '.' . $file->getExtension();
-                } else {
-                    $filename = $this->rules['hash']($filename) . '.' . $file->getExtension();
-                }
-            }
+			if (in_array($file->getKey(), $this->rules['keys'])) {
+				$filename = $file->getName();
 
-            if (isset($this->rules['sanitize']) === true) {
-                $filename = Format::toLatin($filename, '', true);
-            }
+				if (isset($this->rules['hash']) === true) {
+					if (empty($this->rules['hash']) === true) {
+						$this->rules['hash'] = 'md5';
+					}
 
-            if (isset($this->rules['directory'])) {
-                $tmp = rtrim($this->rules['directory'], '/') . DIRECTORY_SEPARATOR . $filename;
-            } else {
-                $tmp = rtrim($this->rules['dynamic'], '/') . DIRECTORY_SEPARATOR . $filename;
+					if (!is_string($this->rules['hash']) === true) {
+						$filename = call_user_func($this->rules['hash']) . '.' . $file->getExtension();
+					} else {
+						$filename = $this->rules['hash']($filename) . '.' . $file->getExtension();
+					}
+				}
 
-            }
+				if (isset($this->rules['sanitize']) === true) {
+					$filename = Format::toLatin($filename, '', true);
+				}
 
-            // move file to target directory
-            $isUploaded = $file->moveTo($tmp);
+				if (isset($this->rules['directory'])) {
+					$tmp = rtrim($this->rules['directory'], '/') . DIRECTORY_SEPARATOR . $filename;
+				} else {
+					$tmp = rtrim($this->rules['dynamic'], '/') . DIRECTORY_SEPARATOR . $filename;
 
-            if ($isUploaded === true) {
-                $this->info[] = [
-                    'path'      =>  $tmp,
-                    'directory' => dirname($tmp),
-                    'filename'  => $filename,
-                    'size'      => $file->getSize(),
-                    'extension' => $file->getExtension(),
-                ];
-            }
-        }
+				}
 
-        return $this->getInfo();
-    }
+				// move file to target directory
+				$isUploaded = $file->moveTo($tmp);
 
-    /**
-     * Return errors messages
-     *
-     * @return array
-     */
-    public function getErrors()
-    {
-        // error container
-        return $this->validator->errors;
-    }
+				if ($isUploaded === true) {
+					$this->info[] = [
+						'path' => $tmp,
+						'directory' => dirname($tmp),
+						'filename' => $filename,
+						'key' => $file->getKey(),
+						'size' => $file->getSize(),
+						'extension' => $file->getExtension(),
+					];
+				}
+			}
+		}
 
-    /**
-     * Get uploaded files info
-     *
-     * @return \Phalcon\Session\Adapter\Files
-     */
-    public function getInfo()
-    {
-        // error container
-        return $this->info;
-    }
+		return $this->getInfo();
+	}
 
-    /**
-     * Truncate uploaded files
-     */
-    public function truncate()
-    {
-        if (empty($this->info) === false) {
-            foreach ($this->info as $n => $file) {
-                if (file_exists($file['path'])) {
-                    unlink($file['path']);
-                }
-            }
-        }
-    }
+	/**
+	 * Return errors messages
+	 *
+	 * @return array
+	 */
+	public function getErrors()
+	{
+		// error container
+		return $this->validator->errors;
+	}
+
+	/**
+	 * Get uploaded files info
+	 *
+	 * @return \Phalcon\Session\Adapter\Files
+	 */
+	public function getInfo()
+	{
+		// error container
+		return $this->info;
+	}
+
+	/**
+	 * Truncate uploaded files
+	 */
+	public function truncate()
+	{
+		if (empty($this->info) === false) {
+			foreach ($this->info as $n => $file) {
+				if (file_exists($file['path'])) {
+					unlink($file['path']);
+				}
+			}
+		}
+	}
 }
