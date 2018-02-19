@@ -156,7 +156,7 @@ class Uploader
 				}
 
 				if (isset($this->rules['sanitize']) === true) {
-					$filename = Format::toLatin($filename, '', true);
+					$filename = Format::toLatin($filename, '_', false);
 				}
 
 				if (isset($this->rules['directory'])) {
